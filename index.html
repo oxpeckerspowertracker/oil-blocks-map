@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SA &amp; Namibia — Offshore Oil &amp; Gas Blocks</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --black:  #000000;
+    --fire:   #E7523F;
+    --dkred:  #8b0000;
+    --cadet:  #A2ABB5;
+    --plat:   #E3E3E3;
+    --pear:   #CBDB2A;
+    --cyan:   #298E8A;
+    --bdazz:  #345995;
+    --nam:    #CBDB2A;
+    --sa:     #E7523F;
+    --bg:     #000000;
+    --panel:  #0d0d0d;
+    --panel2: #111111;
+    --border: #1e2020;
+    --text:   #E3E3E3;
+    --muted:  #A2ABB5;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%; width: 100%;
+    font-family: 'Space Mono', monospace;
+    background: var(--bg);
+    color: var(--text);
+    overflow: hidden;
+  }
+
+  #app { display: flex; flex-direction: column; height: 100%; width: 100%; }
+
+  /* ── HEADER ── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 11px 20px;
+    background: var(--black);
+    border-bottom: 2px solid var(--fire);
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    gap: 8px;
+    z-index: 1000;
+  }
+
+  h1 {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: clamp(0.75rem, 2vw, 1rem);
+    color: var(--plat);
+    letter-spacing: 0.05em;
+  }
+
+  .header-sub {
+    font-size: 0.6rem;
+    color: var(--cadet);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-left: 12px;
+  }
+
+  .legend { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.6rem; color: var(--cadet); letter-spacing: 0.08em; }
+
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+  /* ── BODY ── */
+  .body { display: flex; flex: 1; overflow: hidden; min-height: 0; }
+
+  #map { flex: 1; min-width: 0; z-index: 1; }
+
+  /* ── SIDEBAR ── */
+  .sidebar {
+    width: 300px;
+    min-width: 260px;
+    background: var(--panel);
+    border-left: 2px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex-shrink: 0;
+    z-index: 2;
+  }
+
+  .sidebar-top {
+    padding: 12px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .search-wrap { position: relative; }
+
+  .search-wrap input {
+    width: 100%;
+    background: var(--black);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.68rem;
+    padding: 7px 10px 7px 30px;
+    outline: none;
+    transition: border-color 0.2s;
+    letter-spacing: 0.04em;
+  }
+
+  .search-wrap input:focus { border-color: var(--pear); }
+  .search-wrap input::placeholder { color: #3a3e3e; }
+
+  .search-icon {
+    position: absolute; left: 9px; top: 50%;
+    transform: translateY(-50%);
+    color: var(--cadet); font-size: 0.85rem; pointer-events: none;
+  }
+
+  .filters { display: flex; gap: 5px; margin-top: 8px; }
+
+  .filter-btn {
+    flex: 1;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.58rem;
+    padding: 5px 4px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--cadet);
+    cursor: pointer;
+    letter-spacing: 0.07em;
+    transition: all 0.18s;
+    text-transform: uppercase;
+  }
+
+  .filter-btn.act-all { background: var(--bdazz); border-color: var(--bdazz); color: var(--plat); }
+  .filter-btn.act-na  { background: var(--pear);  border-color: var(--pear);  color: var(--black); }
+  .filter-btn.act-sa  { background: var(--fire);  border-color: var(--fire);  color: var(--plat); }
+  .filter-btn:not([class*="act"]):hover { border-color: var(--cadet); color: var(--plat); }
+
+  /* ── BLOCK LIST ── */
+  .block-list { flex: 1; overflow-y: auto; }
+  .block-list::-webkit-scrollbar { width: 3px; }
+  .block-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .block-item {
+    padding: 10px 14px 10px 17px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.12s;
+    position: relative;
+  }
+
+  .block-item::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  }
+
+  .block-item.namibia::before      { background: var(--pear); }
+  .block-item.south-africa::before { background: var(--fire); }
+  .block-item:hover    { background: rgba(255,255,255,0.04); }
+  .block-item.selected { background: rgba(52,89,149,0.25); }
+
+  .block-name {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700; font-size: 0.78rem;
+    color: var(--plat); padding-right: 36px;
+  }
+
+  .block-field { font-size: 0.6rem; color: var(--pear); margin: 2px 0 4px; letter-spacing: 0.04em; }
+
+  .block-holder { font-size: 0.58rem; color: var(--cadet); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .block-tag {
+    position: absolute; right: 10px; top: 10px;
+    font-size: 0.5rem; letter-spacing: 0.1em;
+    text-transform: uppercase; padding: 2px 5px; border-radius: 2px;
+  }
+
+  .block-tag.namibia      { background: rgba(203,219,42,0.15); color: var(--pear); }
+  .block-tag.south-africa { background: rgba(231,82,63,0.15);  color: var(--fire); }
+
+  .no-results {
+    padding: 28px 14px; text-align: center;
+    font-size: 0.62rem; color: var(--cadet); letter-spacing: 0.08em;
+  }
+
+  /* ── STATS ── */
+  .stats {
+    padding: 9px 14px;
+    border-top: 2px solid var(--border);
+    background: var(--black);
+    display: flex; gap: 16px; flex-shrink: 0;
+  }
+
+  .stat-val {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800; font-size: 1.1rem;
+    color: var(--plat); display: block;
+  }
+
+  .stat-label { font-size: 0.52rem; color: var(--cadet); letter-spacing: 0.1em; text-transform: uppercase; }
+
+  /* ── LEAFLET POPUP ── */
+  .leaflet-popup-content-wrapper {
+    background: #ffffff !important;
+    border: 1px solid #dddddd !important;
+    border-top: 3px solid var(--fire) !important;
+    border-radius: 0 !important;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.25) !important;
+    color: #111111 !important;
+  }
+
+  .leaflet-popup-tip-container { display: none; }
+  .leaflet-popup-close-button { color: #888888 !important; top: 8px !important; right: 8px !important; }
+  .leaflet-popup-close-button:hover { color: #111111 !important; }
+  .leaflet-popup-content { margin: 14px 16px !important; }
+
+  .pop-tag {
+    display: inline-block; font-size: 0.52rem; letter-spacing: 0.12em;
+    text-transform: uppercase; padding: 2px 7px; border-radius: 2px; margin-bottom: 8px;
+  }
+
+  .pop-tag.namibia      { background: rgba(203,219,42,0.2); color: #5a6200; border: 1px solid rgba(203,219,42,0.6); }
+  .pop-tag.south-africa { background: rgba(231,82,63,0.12); color: var(--dkred); border: 1px solid rgba(231,82,63,0.4); }
+
+  .pop-title { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1rem; color: #000000; margin-bottom: 2px; }
+  .pop-field { font-size: 0.68rem; color: #5a6200; font-style: italic; margin-bottom: 10px; }
+
+  .pop-row { display: flex; gap: 8px; margin-bottom: 6px; align-items: flex-start; }
+  .pop-lbl { font-size: 0.55rem; color: #666666; letter-spacing: 0.1em; text-transform: uppercase; min-width: 60px; flex-shrink: 0; padding-top: 1px; }
+  .pop-val { font-size: 0.63rem; color: #111111; line-height: 1.45; }
+
+  .pop-notes {
+    margin-top: 10px; padding-top: 10px;
+    border-top: 1px solid #eeeeee;
+    font-size: 0.6rem; color: #444444;
+    line-height: 1.65; max-height: 130px; overflow-y: auto;
+  }
+
+  .pop-notes::-webkit-scrollbar { width: 3px; }
+  .pop-notes::-webkit-scrollbar-thumb { background: #cccccc; }
+
+  @media (max-width: 640px) {
+    .sidebar { width: 100%; height: 220px; min-width: unset; border-left: none; border-top: 2px solid var(--fire); }
+    .body { flex-direction: column; }
+    .header-sub { display: none; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header>
+    <div style="display:flex;align-items:baseline;flex-wrap:wrap;gap:8px;">
+      <h1>⛽ SA &amp; NAMIBIA — OFFSHORE OIL &amp; GAS BLOCKS</h1>
+      <span class="header-sub">Orange Basin · Walvis Basin · 30 Licences</span>
+    </div>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#CBDB2A"></div>NAMIBIA</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#E7523F"></div>SOUTH AFRICA</div>
+    </div>
+  </header>
+
+  <div class="body">
+    <div id="map"></div>
+
+    <div class="sidebar">
+      <div class="sidebar-top">
+        <div class="search-wrap">
+          <span class="search-icon">⌕</span>
+          <input type="text" id="search" placeholder="Search blocks, operators, fields…">
+        </div>
+        <div class="filters">
+          <button class="filter-btn act-all" onclick="setFilter('all',this)">All</button>
+          <button class="filter-btn"         onclick="setFilter('namibia',this)">Namibia</button>
+          <button class="filter-btn"         onclick="setFilter('south-africa',this)">South Africa</button>
+        </div>
+      </div>
+
+      <div class="block-list" id="blockList"></div>
+
+      <div class="stats">
+        <div><span class="stat-val" id="sTotal">30</span><span class="stat-label">Total</span></div>
+        <div><span class="stat-val" id="sNam" style="color:#CBDB2A">—</span><span class="stat-label">Namibia</span></div>
+        <div><span class="stat-val" id="sSA"  style="color:#E7523F">—</span><span class="stat-label">South Africa</span></div>
+      </div>
+    </div>
+  </div>
+
+  <footer style="background:#000;border-top:1px solid #1a1a1a;padding:9px 20px;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px;flex-shrink:0;">
+    <div style="display:flex;flex-direction:column;gap:3px;">
+      <span style="font-size:0.57rem;color:#A2ABB5;letter-spacing:0.05em;"><span style="color:#6b7490;text-transform:uppercase;letter-spacing:0.1em;font-size:0.5rem;">Source</span>&nbsp;&nbsp;Oxpeckers Investigative Environmental Journalism &middot; NAMCOR &middot; Petroleum Agency SA</span>
+      <span style="font-size:0.57rem;color:#A2ABB5;letter-spacing:0.05em;"><span style="color:#6b7490;text-transform:uppercase;letter-spacing:0.1em;font-size:0.5rem;">Dataset &amp; map</span>&nbsp;&nbsp;Roxanne Joseph</span>
+    </div>
+    <div style="font-size:0.57rem;color:#A2ABB5;letter-spacing:0.05em;display:flex;align-items:center;gap:6px;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6b7490" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      Select a point on the map to view details about each block
+    </div>
+  </footer>
+
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const BLOCKS = [
+  {licence:"Block 1",       blockNum:"Block 1",               field:"Gariep Mouth",              holder:"Azinam South Africa (Eco Atlantic, Op 75%), Tosaco Energy (25%)",                                              notes:"Acquired June 2024. 19,929 km², ~263 km into deep water in the Orange Basin on the Namibian border.",                                                                                                           lat:-28.714, lng:16.487, country:"south-africa"},
+  {licence:"Block 2B",      blockNum:"Block 2B",               field:"",                           holder:"Eco Atlantic (Op, relinquished Jun 2024), Africa Energy (27.5%), Panoro (12.5%), Crown Energy (10%)",         notes:"Eco Atlantic relinquished its 50% operated interest in June 2024, deeming it a non-core asset.",                                                                                                               lat:-30.351, lng:16.845, country:"south-africa"},
+  {licence:"Block 2C",      blockNum:"Block 2C",               field:"",                           holder:"Shell (Operator)",                                                                                              notes:"Shell Offshore approved as 60% majority partner with PetroSA in late 2025, committing a US$25 million signing bonus.",                                                                                           lat:-30.788, lng:16.823, country:"south-africa"},
+  {licence:"Block 3B/4B",   blockNum:"3014, 3114, 3215, 3216", field:"",                           holder:"TotalEnergies (Op,33%), QatarEnergy (24%), Ricocure (19.75%), Africa Oil SA (17%), Azinam/Eco Atlantic (6.25%)", notes:"Located 120–250 km offshore western South Africa. 17,581 km², water depths 300–2,500 m. BHP 3D seismic (2012) reprocessed in 2022.",                                                              lat:-31.561, lng:17.065, country:"south-africa"},
+  {licence:"ER 274 (NCUD)", blockNum:"3013 & 3113",            field:"Northern Cape Ultra Deep",   holder:"Shell (Op,40.5%), QatarEnergy (40.5%), Umbono (10%), OK Energy (9%)",                                        notes:"~300 km offshore, water depths 2,500–3,200 m, ~5,254 km². Environmental Authorisation granted 30 June 2025 for geophysical surveys and exploration well drilling.",                                             lat:-28.983, lng:16.180, country:"south-africa"},
+  {licence:"Block 5/6/7",   blockNum:"Block 5/6/7",            field:"Ibhubesi",                   holder:"TotalEnergies (40%, withdrew Jul 2024), Shell (commercial interest, joinder applicant)",                      notes:"Judicial review ongoing. Western Cape High Court set aside the environmental authorisation in August 2025, finding the EIA flawed.",                                                                            lat:-34.789, lng:17.683, country:"south-africa"},
+  {licence:"PL003",         blockNum:"Block 2814",             field:"Kudu Gas-to-Power",          holder:"BW Kudu Ltd (Op,95%), NAMCOR (5%)",                                                                           notes:"Kharas-1 appraisal completed Nov 2025, confirming hydrocarbons at 5,100 m. Dry-gas shows in shallow turbidites; light oil/condensate confirmed in deeper fractured volcaniclastic reservoir.",                lat:-28.633, lng:16.424, country:"namibia"},
+  {licence:"PEL 37",        blockNum:"2112A, 2112B, 2113B",    field:"",                           holder:"Paragon Oil & Gas",                                                                                            notes:"Details not publicly available.",                                                                                                                                                                              lat:-21.045, lng:12.398, country:"namibia"},
+  {licence:"PEL 39",        blockNum:"2913A, 2914B",           field:"",                           holder:"Shell Namibia (Op,45%), QatarEnergy (45%), NAMCOR (10%)",                                                    notes:"Eight wells drilled since Graff-1X discovery (2022). ~$400M writedown January 2026 over a discovery deemed commercially unviable. New drilling campaign planned from April 2026.",                              lat:-29.772, lng:13.920, country:"namibia"},
+  {licence:"PEL 56",        blockNum:"2913B",                  field:"Venus",                      holder:"TotalEnergies (Op,35.25%), QatarEnergy (35.25%), Galp (10%), Impact O&G Namibia (9.5%), NAMCOR (10%)",       notes:"Post-well studies ongoing. Tamboti-1X exploration well drilling continues. FID targeted early 2026. Galp acquired 10% interest in December 2025.",                                                       lat:-29.716, lng:13.093, country:"namibia"},
+  {licence:"PEL 79",        blockNum:"Block 2815 & 2915",      field:"",                           holder:"NAMCOR (Op,67%), Giraffe Energy Investments (33%)",                                                           notes:"12-month extension to July 2026 secured in July 2025. Good 2D/3D seismic coverage. Located near Shell, BW Energy and Rhino Resources acreage.",                                                                 lat:-28.365, lng:15.245, country:"namibia"},
+  {licence:"PEL 82",        blockNum:"2112B, 2211A",           field:"",                           holder:"Chevron Namibia (Op,80%), NAMCOR (10%), Custos Energy (10%)",                                                notes:"Chevron entered April 2024. Previous drilling includes Murombe-1 and Wingat-1 wells in the Walvis Basin.",                                                                                                       lat:-22.056, lng:12.354, country:"namibia"},
+  {licence:"PEL 83",        blockNum:"2813A",                  field:"Mopane Complex",             holder:"TotalEnergies (Op,40%), Galp (40%), NAMCOR (10%), Custos Energy (10%)",                                      notes:"Mopane-1A appraisal (Nov 2024) found light oil & gas-condensate. Mopane-3X spudded Jan 2025. TotalEnergies acquired 40% interest December 2025. Three-well appraisal campaign, first well in 2026.",          lat:-28.519, lng:13.615, country:"namibia"},
+  {licence:"PEL 85",        blockNum:"2914A",                  field:"Sagittarius / Capricornus",  holder:"Rhino Resources (Op,42.5%), Azule Energy (42.5%), NAMCOR (10%), Korres (5%)",                                notes:"Volans-1X well test early 2026: ~33 MMscfd gas and 5,300 bpd condensate, high condensate-to-gas ratio. Third discovery in PEL 85 following two 2025 finds. Commercialisation progressing.",                    lat:-29.224, lng:14.463, country:"namibia"},
+  {licence:"PEL 87",        blockNum:"2713",                   field:"",                           holder:"Pancontinental Energy",                                                                                        notes:"12-month extension to January 2027 granted March 2026, contingent on EIA completion, seismic reprocessing, and drilling one exploration well. Covers 10,970 km² in Orange Basin.",                             lat:-27.579, lng:13.376, country:"namibia"},
+  {licence:"PEL 88",        blockNum:"2413",                   field:"",                           holder:"Black Eagle E&P",                                                                                              notes:"Details not publicly available.",                                                                                                                                                                              lat:-24.908, lng:13.332, country:"namibia"},
+  {licence:"PEL 90",        blockNum:"2813",                   field:"",                           holder:"Chevron Namibia / Harmattan Energy, Trago Energy, NAMCOR",                                                    notes:"Harmattan Energy drilled January 2025 in the Orange Basin — no commercial hydrocarbon quantities found.",                                                                                                         lat:-28.691, lng:13.202, country:"namibia"},
+  {licence:"PEL 91",        blockNum:"2912",                   field:"",                           holder:"TotalEnergies (Op,33.1%), QatarEnergy (33%), Galp (9.4%), NAMCOR (15%), Impact O&G (9.5%)",                 notes:"Post-well studies and exploration campaign ongoing. Galp acquired 9.39% interest in December 2025.",                                                                                                            lat:-29.356, lng:12.571, country:"namibia"},
+  {licence:"PEL 94",        blockNum:"2011A",                  field:"",                           holder:"Global Petroleum",                                                                                             notes:"Active.",                                                                                                                                                                                                     lat:-20.286, lng:11.915, country:"namibia"},
+  {licence:"PEL 95",        blockNum:"1810",                   field:"",                           holder:"ExxonMobil E&P",                                                                                               notes:"Active.",                                                                                                                                                                                                     lat:-18.842, lng:11.552, country:"namibia"},
+  {licence:"PEL 96",        blockNum:"1910A",                  field:"",                           holder:"Tower Resources",                                                                                              notes:"Active.",                                                                                                                                                                                                     lat:-19.646, lng:11.739, country:"namibia"},
+  {licence:"PEL 97",        blockNum:"1911",                   field:"Cooper Block / Osprey Lead", holder:"Eco Atlantic (Op,85%), NAMCOR (10%), Tangi Trading (5%)",                                                    notes:"Shallow water (100–500 m), Walvis Basin, ~5,788 km². Osprey Lead: 882 million barrel Aptian/Albian oil target in ~300 m water. Environmental Permits submitted for the Osprey Well.",                           lat:-20.293, lng:12.550, country:"namibia"},
+  {licence:"PEL 98",        blockNum:"2213B",                  field:"Sharon Block",               holder:"Lamda Energy (85%, pending govt approval, transferred from Eco Atlantic)",                                    notes:"Eco Atlantic agreed to transfer 85% to Lamda Energy. Lamda may pay Eco up to US$2M if it farms out part of its stake. Eco retains a board seat during transition.",                                             lat:-22.700, lng:13.224, country:"namibia"},
+  {licence:"PEL 99",        blockNum:"2111B, 2211A",           field:"Guy Block",                  holder:"Eco Atlantic (Op,85%), NAMCOR (10%), Lotus Explorations (5%)",                                               notes:"Deep water (1,500–3,000 m), Walvis Basin, ~11,457 km².",                                                                                                                                                       lat:-21.977, lng:12.453, country:"namibia"},
+  {licence:"PEL 100",       blockNum:"2211Ba, 2211Aa",         field:"Tamar Block",                holder:"Eco Atlantic (Op,85%), NAMCOR (10%), Moonshade Investment (5%)",                                             notes:"Deep water (2,500–3,000 m), Walvis Basin, ~5,648 km².",                                                                                                                                                        lat:-22.991, lng:11.422, country:"namibia"},
+  {licence:"PEL 102",       blockNum:"2614B",                  field:"",                           holder:"Stamper Oil & Gas Corp (20%), NAMCOR",                                                                        notes:"Water depths 100–1,000 m. Favourable structural and stratigraphic conditions, good source-rock potential.",                                                                                                      lat:-26.790, lng:14.486, country:"namibia"},
+  {licence:"PEL 104",       blockNum:"2613",                   field:"",                           holder:"Eight Offshore Investments",                                                                                   notes:"Active.",                                                                                                                                                                                                     lat:-26.514, lng:13.384, country:"namibia"},
+  {licence:"PEL 106",       blockNum:"2011A, 2011B",           field:"",                           holder:"Oranto Petroleum, Stamper Oil & Gas Corp (5%)",                                                              notes:"Several prospects with multi-billion barrel potential. Over 2,000 km² of 3D seismic. EIA for additional seismic granted July 2025.",                                                                             lat:-19.884, lng:11.860, country:"namibia"},
+  {licence:"PEL 107",       blockNum:"2712A",                  field:"",                           holder:"Stamper Oil & Gas Corp (32.9%), Vena Gemstones and Mining",                                                  notes:"Located north of Rhino, Galp and TotalEnergies discoveries. Depths 2,800–3,900 m. Seismic acquisition planned; exploration well targeted 2027.",                                                               lat:-27.535, lng:12.612, country:"namibia"},
+  {licence:"PEL 108",       blockNum:"2712B, 2812B",           field:"",                           holder:"Baobab Energy",                                                                                                notes:"Active.",                                                                                                                                                                                                     lat:-27.555, lng:12.061, country:"namibia"},
+  {licence:"PEL 109",       blockNum:"2812A",                  field:"",                           holder:"Zambezi Exploration",                                                                                          notes:"Active.",                                                                                                                                                                                                     lat:-28.275, lng:12.590, country:"namibia"},
+];
+
+// ── MAP ───────────────────────────────────────────────────────────────────────
+const map = L.map('map', { center: [-25.5, 13.8], zoom: 6, zoomControl: true });
+
+// Esri Ocean Base — shows bathymetry and coastlines
+L.tileLayer(
+  'https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}',
+  { attribution: 'Tiles &copy; Esri &mdash; GEBCO, NOAA, NGA', maxZoom: 13 }
+).addTo(map);
+
+// Ocean reference overlay (labels & place names)
+L.tileLayer(
+  'https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Reference/MapServer/tile/{z}/{y}/{x}',
+  { attribution: '', maxZoom: 13, opacity: 0.8 }
+).addTo(map);
+
+// ── ICONS ─────────────────────────────────────────────────────────────────────
+function makeIcon(country) {
+  const fill  = country === 'namibia' ? '#CBDB2A' : '#E7523F';
+  const stroke = country === 'namibia' ? '#8b8b00' : '#8b0000';
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 30 30">
+    <circle cx="15" cy="15" r="12" fill="${fill}" fill-opacity="0.22" stroke="${fill}" stroke-width="1.8"/>
+    <circle cx="15" cy="15" r="6" fill="${fill}" stroke="${stroke}" stroke-width="1"/>
+  </svg>`;
+  return L.divIcon({ html: svg, className: '', iconSize: [30,30], iconAnchor: [15,15], popupAnchor: [0,-15] });
+}
+
+// ── POPUPS ────────────────────────────────────────────────────────────────────
+function makePopup(b) {
+  const cls = b.country === 'namibia' ? 'namibia' : 'south-africa';
+  const lbl = b.country === 'namibia' ? 'NAMIBIA' : 'SOUTH AFRICA';
+  return `<div style="min-width:260px;max-width:320px;">
+    <span class="pop-tag ${cls}">${lbl}</span>
+    <div class="pop-title">${b.licence}</div>
+    ${b.field ? `<div class="pop-field">${b.field}</div>` : '<div style="margin-bottom:10px"></div>'}
+    <div class="pop-row"><span class="pop-lbl">Block(s)</span><span class="pop-val">${b.blockNum||'—'}</span></div>
+    <div class="pop-row"><span class="pop-lbl">Holders</span><span class="pop-val">${b.holder||'—'}</span></div>
+    <div class="pop-notes">${b.notes||''}</div>
+  </div>`;
+}
+
+// ── MARKERS ───────────────────────────────────────────────────────────────────
+const markers = BLOCKS.map((b, i) => {
+  const m = L.marker([b.lat, b.lng], { icon: makeIcon(b.country) })
+    .addTo(map)
+    .bindPopup(makePopup(b), { maxWidth: 340, minWidth: 280 });
+  m.on('click', () => selectBlock(i, false));
+  return m;
+});
+
+// ── SIDEBAR ───────────────────────────────────────────────────────────────────
+let filter = 'all', query = '', selected = null;
+
+function buildList() {
+  const list = document.getElementById('blockList');
+  const q = query.toLowerCase();
+  const filtered = BLOCKS.map((b, i) => ({ b, i })).filter(({ b }) => {
+    const mf = filter === 'all' || b.country === filter;
+    const mq = !q || [b.licence, b.field, b.holder, b.blockNum, b.notes].join(' ').toLowerCase().includes(q);
+    return mf && mq;
+  });
+
+  list.innerHTML = '';
+  if (!filtered.length) {
+    list.innerHTML = `<div class="no-results">NO RESULTS FOUND</div>`;
+    updateStats([]);
+    return;
+  }
+
+  filtered.forEach(({ b, i }) => {
+    const div = document.createElement('div');
+    div.className = `block-item ${b.country}${selected === i ? ' selected' : ''}`;
+    div.id = `item-${i}`;
+    const tag = b.country === 'namibia' ? 'NAM' : 'SA';
+    div.innerHTML = `
+      <span class="block-tag ${b.country}">${tag}</span>
+      <div class="block-name">${b.licence}</div>
+      ${b.field ? `<div class="block-field">${b.field}</div>` : ''}
+      <div class="block-holder">${b.holder || 'Holder not disclosed'}</div>`;
+    div.addEventListener('click', () => selectBlock(i, true));
+    list.appendChild(div);
+  });
+
+  updateStats(filtered.map(f => f.b));
+}
+
+function updateStats(list) {
+  document.getElementById('sTotal').textContent = list.length;
+  document.getElementById('sNam').textContent   = list.filter(b => b.country === 'namibia').length;
+  document.getElementById('sSA').textContent    = list.filter(b => b.country === 'south-africa').length;
+}
+
+function selectBlock(i, flyTo) {
+  if (selected !== null) {
+    const prev = document.getElementById(`item-${selected}`);
+    if (prev) prev.classList.remove('selected');
+  }
+  selected = i;
+  const el = document.getElementById(`item-${i}`);
+  if (el) { el.classList.add('selected'); el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+
+  const b = BLOCKS[i];
+  if (flyTo) {
+    map.flyTo([b.lat, b.lng], 8, { duration: 1.1 });
+    setTimeout(() => markers[i].openPopup(), 1150);
+  }
+}
+
+function setFilter(f, btn) {
+  filter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('act-all','act-na','act-sa'));
+  if (f === 'all') btn.classList.add('act-all');
+  else if (f === 'namibia') btn.classList.add('act-na');
+  else btn.classList.add('act-sa');
+
+  BLOCKS.forEach((b, i) => {
+    const show = f === 'all' || b.country === f;
+    show ? map.addLayer(markers[i]) : map.removeLayer(markers[i]);
+  });
+  buildList();
+}
+
+document.getElementById('search').addEventListener('input', e => { query = e.target.value; buildList(); });
+buildList();
+</script>
+</body>
+</html>
